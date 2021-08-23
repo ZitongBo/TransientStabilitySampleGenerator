@@ -1,0 +1,17 @@
+# Test machine parameters
+
+ID = GEN5
+GEN_NO = 4
+MVA_Rating = 100
+
+Ra = 0.0
+Xa = 0.0
+Xd = 0.67
+Xq = 0.62
+Xdp = 0.132
+Xqp = 0.132
+Xdpp = 0.2
+Xqpp = 0.2
+Td0p = 5.4
+Tq0p = 0.44
+H = 26

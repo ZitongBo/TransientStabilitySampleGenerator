@@ -1,0 +1,17 @@
+# Test machine parameters
+
+ID = GEN7
+GEN_NO = 6
+MVA_Rating = 100
+
+Ra = 0.0
+Xa = 0.0
+Xd = 0.295
+Xq = 0.292
+Xdp = 0.049
+Xqp = 0.049
+Xdpp = 0.2
+Xqpp = 0.2
+Td0p = 5.66
+Tq0p = 1.5
+H = 38.4

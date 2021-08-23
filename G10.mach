@@ -1,0 +1,17 @@
+# Test machine parameters
+
+ID = GEN10
+GEN_NO = 9
+MVA_Rating = 100
+
+Ra = 0.0
+Xa = 0.0
+Xd = 0.2
+Xq = 0.019
+Xdp = 0.006
+Xqp = 0.006
+Xdpp = 0.2
+Xqpp = 0.2
+Td0p = 7
+Tq0p = 0.7
+H = 500
