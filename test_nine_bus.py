@@ -54,16 +54,16 @@ if __name__ == '__main__':
     dynopt['iopt'] = 'runge_kutta'
           
     # Create dynamic model objects
-    G1 = sym_order4('G1.mach', dynopt)
-    G2 = sym_order4('G2.mach', dynopt)
-    G3 = sym_order4('G3.mach', dynopt)
-    G4 = sym_order4('G4.mach', dynopt)
-    G5 = sym_order4('G5.mach', dynopt)
-    G6 = sym_order4('G6.mach', dynopt)
-    G7 = sym_order4('G7.mach', dynopt)
-    G8 = sym_order4('G8.mach', dynopt)
-    G9 = sym_order4('G9.mach', dynopt)
-    G10 = sym_order4('G10.mach', dynopt)
+    G1 = sym_order4('generator/G1.mach', dynopt)
+    G2 = sym_order4('generator/G2.mach', dynopt)
+    G3 = sym_order4('generator/G3.mach', dynopt)
+    G4 = sym_order4('generator/G4.mach', dynopt)
+    G5 = sym_order4('generator/G5.mach', dynopt)
+    G6 = sym_order4('generator/G6.mach', dynopt)
+    G7 = sym_order4('generator/G7.mach', dynopt)
+    G8 = sym_order4('generator/G8.mach', dynopt)
+    G9 = sym_order4('generator/G9.mach', dynopt)
+    G10 = sym_order4('generator/G10.mach', dynopt)
     # G1 = ext_grid('GEN1', 0, 0.0608, 23.64, dynopt)
     # G2 = ext_grid('GEN2', 1, 0.1198, 6.01, dynopt)
     # G3 = ext_grid('GEN3', 2, 0.1813, 3.01, dynopt)
@@ -87,15 +87,15 @@ if __name__ == '__main__':
     oEvents = events('events.evnt')
     
     # Create recorder object
-    oRecord = recorder('recorder.rcd')
+    oRecord = recorder('recorder.rcd', ppc)
     
     # Run simulation
     oRecord = run_sim(ppc,elements,dynopt,oEvents,oRecord)
     
     # Plot variables
-    baseline = np.array(oRecord.results["GEN"+str(1)+":delta"])*180/np.pi
+    baseline = np.array(oRecord.results["GEN:delta"+str(1)])*180/np.pi
     for i in range(len(elements)-1):
-        plt.plot(oRecord.t_axis, np.array(oRecord.results["GEN"+str(i+2)+":delta"])*180/np.pi-baseline)
+        plt.plot(oRecord.t_axis, np.array(oRecord.results["GEN:delta"+str(i+2)])*180/np.pi-baseline)
     # plt.plot(oRecord.t_axis,rel_delta1 * 180 / np.pi, 'r-', oRecord.t_axis, rel_delta2 *180 / np.pi, 'b-')
     # plt.plot(oRecord.t_axis, oRecord.results['GEN1:omega'])
     plt.xlabel('Time (s)')
@@ -104,4 +104,4 @@ if __name__ == '__main__':
     plt.show()
     
     # Write recorded variables to output file
-    oRecord.write_output('output.csv')
+    # oRecord.write_output('output.csv')

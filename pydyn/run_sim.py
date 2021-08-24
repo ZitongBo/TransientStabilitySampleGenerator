@@ -16,20 +16,20 @@ from pydyn.version import pydyn_ver
 import matplotlib.pyplot as plt
 from scipy.sparse.linalg import splu
 import numpy as np
-
+from pypower.pfsoln import pfsoln
 from pypower.runpf import runpf
 from pypower.ext2int import ext2int
 from pypower.makeYbus import makeYbus
 from pypower.idx_bus import BUS_I, BUS_TYPE, PD, QD, GS, BS, BUS_AREA, \
     VM, VA, VMAX, VMIN, LAM_P, LAM_Q, MU_VMAX, MU_VMIN, REF
     
-def run_sim(ppc, elements, dynopt = None, events = None, recorder = None):
+def run_sim(ppc, gens, dynopt = None, events = None, recorder = None):
     """
     Run a time-domain simulation
     
     Inputs:
         ppc         PYPOWER load flow case
-        elements    Dictionary of dynamic model objects (machines, controllers, etc) with Object ID as key
+        gens    Dictionary of dynamic model objects (machines, controllers, etc) with Object ID as key
         events      Events object
         recorder    Recorder object (empty)
     
@@ -63,7 +63,7 @@ def run_sim(ppc, elements, dynopt = None, events = None, recorder = None):
     # Make lists of current injection sources (generators, external grids, etc) and controllers
     sources = []
     controllers = []
-    for element in elements.values():
+    for element in gens.values():
         if element.__module__ in ['pydyn.sym_order6a', 'pydyn.sym_order6b', 'pydyn.sym_order4', 'pydyn.ext_grid', 'pydyn.vsc_average', 'pydyn.asym_1cage', 'pydyn.asym_2cage']:
             sources.append(element)
             
@@ -71,7 +71,7 @@ def run_sim(ppc, elements, dynopt = None, events = None, recorder = None):
             controllers.append(element)
     
     # Set up interfaces
-    interfaces = init_interfaces(elements)
+    interfaces = init_interfaces(gens)
     
     ##################
     # INITIALISATION #
@@ -82,14 +82,14 @@ def run_sim(ppc, elements, dynopt = None, events = None, recorder = None):
     results, success = runpf(ppc) 
     ppc["bus"][:, VM] = results["bus"][:, VM]
     ppc["bus"][:, VA] = results["bus"][:, VA]
-    
+
     # Build Ybus matrix
     ppc_int = ext2int(ppc)
     baseMVA, bus, branch = ppc_int["baseMVA"], ppc_int["bus"], ppc_int["branch"]
     Ybus, Yf, Yt = makeYbus(baseMVA, bus, branch)
     
     # Build modified Ybus matrix
-    Ybus = mod_Ybus(Ybus, elements, bus, ppc_int['gen'], baseMVA)
+    Ybus = mod_Ybus(Ybus, gens, bus, ppc_int['gen'], baseMVA)
     
     # Calculate initial voltage phasors
     v0 = bus[:, VM] * (np.cos(np.radians(bus[:, VA])) + 1j * np.sin(np.radians(bus[:, VA])))
@@ -137,6 +137,9 @@ def run_sim(ppc, elements, dynopt = None, events = None, recorder = None):
     v_prev = v0
     print('Simulating...')
     for t in range(int(t_sim / h) + 1):
+        # Record state
+        elements = {"gen": {}, "bus": {}, "bran": {}, "load": {}}
+
         if np.mod(t,1/h) == 0:
             print('t=' + str(t*h) + 's')
             
@@ -147,10 +150,8 @@ def run_sim(ppc, elements, dynopt = None, events = None, recorder = None):
         
         # Solve differential equations
         for j in range(4):
-
-
             # Solve step of differential equations
-            for element in elements.values():
+            for element in gens.values():
                 element.solve_step(h,j) 
             v0 = bus[:, VM] * (np.cos(np.radians(bus[:, VA])) + 1j * np.sin(np.radians(bus[:, VA])))
             
@@ -163,17 +164,24 @@ def run_sim(ppc, elements, dynopt = None, events = None, recorder = None):
             bus_V[v][1] = Va
             t_bus_V[t][v][0] = Vm
             t_bus_V[t][v][1] = Va
+        # results, _ = runpf(ppc)
+        # ppc["bus"][:, VM] = results["bus"][:, VM]
+        # ppc["bus"][:, VA] = results["bus"][:, VA]
         # Interface with network equations
         # print('Time',t)
         # for i in range(len(bus)):
         #     print('Bus No.',i,' voltage magnitude:',bus_V[i][0],' voltage angle :',bus_V[i][1])
-        if recorder != None:
+        if recorder is not None:
             # Record signals or states
-            recorder.record_variables(t*h, elements)
+            recorder.time_step(t)
+            recorder.record_bus(bus_V)
+            recorder.record_gen(gens)
+            recorder.record_bran(results["branch"])
+            recorder.record_load(ppc_int["load"])
         
         if events is not None:
             # Check event stack
-            ppc, refactorise, flag = events.handle_events(np.round(t*h,5), elements, ppc, baseMVA,flag)
+            ppc, refactorise, flag = events.handle_events(np.round(t*h,5), gens, ppc, baseMVA,flag)
             
             if refactorise is True:
                 # Rebuild Ybus from new ppc_int
@@ -182,33 +190,33 @@ def run_sim(ppc, elements, dynopt = None, events = None, recorder = None):
                 Ybus, Yf, Yt = makeYbus(baseMVA, bus, branch)
                 
                 # Rebuild modified Ybus
-                Ybus = mod_Ybus(Ybus, elements, bus, ppc_int['gen'], baseMVA)
+                Ybus = mod_Ybus(Ybus, gens, bus, ppc_int['gen'], baseMVA)
 
                 # Refactorise Ybus
                 Ybus_inv = splu(Ybus)
 
                 # Solve network equations
                 v_prev = solve_network(sources, v_prev, Ybus_inv, ppc_int, len(bus), max_err, max_iter)
-        # instability = 0
-        # for e in elements.values():
-        #     if abs(e.states['delta']) > np.pi:
-        #         instability = 1
-        #         break
-        # if instability:
-        #     break
-    x = np.arange(int(t_sim / h) + 1)
-    #
-    for i in range(39):
-        #    plt.plot(x/100, abs(t_bus_V[:, i, 0]), label='bus '+ str(i))
-        plt.plot(x / 100, abs(t_bus_V[:, i, 0]),)
-    plt.xlabel("time/s")
-    plt.ylabel("")
-    #plt.legend()
-    plt.show()
 
+    for i in range(ppc["number_branch"]):
+        plt.plot(recorder.t_axis, np.array(recorder.results["BRAN:Pf" + str(i)]))
+    plt.xlabel('Time (s)')
+    # plt.ylim((30,80))
+    plt.ylabel('Pf')
+    plt.show()
+    # x = np.arange(int(t_sim / h) + 1)
+    #
+    # for i in range(39):
+    #     #    plt.plot(x/100, abs(t_bus_V[:, i, 0]), label='bus '+ str(i))
+    #     plt.plot(x / 100, abs(t_bus_V[:, i, 0]),)
+    # plt.xlabel("time/s")
+    # plt.ylabel("")
+    # #plt.legend()
+    # plt.show()
 
     return recorder
-    
+
+
 def solve_network(sources, v_prev, Ybus_inv, ppc_int, no_buses, max_err, max_iter):
     """
     Solve network equations
@@ -228,7 +236,6 @@ def solve_network(sources, v_prev, Ybus_inv, ppc_int, no_buses, max_err, max_ite
                 source_bus = int(ppc_int['gen'][source.gen_no,0])
                 
             I[source_bus] = source.calc_currents(v_prev[source_bus])
-            
 
         # Solve for network voltages
         vtmp = Ybus_inv.solve(I)[:39]

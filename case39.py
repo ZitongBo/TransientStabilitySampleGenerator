@@ -201,8 +201,17 @@ def case39():
         [28, 29, 0.0014, 0.0151, 0.249, 600, 600, 600, 0, 0, 1, -360, 360],
         [29, 38, 0.0008, 0.0156, 0, 1200, 1200, 2500, 1.025, 0, 1, -360, 360]
     ])
+
     ppc["fault"] = []
     ppc["number_branch"] = len(ppc["branch"])
+    ppc["number_bus"] = len(ppc["bus"])
+    ppc["number_gen"] = len(ppc["gen"])
+
+    ppc["load"] = []
+    for i in range(ppc["number_bus"]):
+        if ppc["bus"][i][2] != 0:
+            ppc["load"].append([ppc["bus"][i][2], ppc["bus"][i][3]])
+    ppc["number_load"] = len(ppc["load"])
     ##-----  OPF Data  -----##
     ## generator cost data
     # 1 startup shutdown n x1 y1 ... xn yn

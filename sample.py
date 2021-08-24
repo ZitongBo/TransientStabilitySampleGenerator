@@ -19,7 +19,8 @@ def criticalSample(elements, dynopt, fault):
     case = loadcase('case39.py')
     # 判断是否存在临界样本
     writeEventFile(fault, min_time * dynopt["h"])
-    if TransientStability(case, elements, dynopt) is False:
+    recorder = simulation(case, elements, dynopt)
+    if TransientStability(recorder) is False:
         print('Can not generate critical sample, please adjust the parameters')
         return None
 
@@ -30,7 +31,8 @@ def criticalSample(elements, dynopt, fault):
         writeEventFile(fault, curr_time * dynopt["h"])
         dynopt['t_sim'] = 5+curr_time*dynopt["h"]
         case = loadcase('case39.py')
-        stability = TransientStability(case, elements, dynopt)
+        recorder = simulation(case, elements, dynopt)
+        stability = TransientStability(recorder)
         print('stability', stability)
         if stability:
             min_time = curr_time
@@ -39,8 +41,7 @@ def criticalSample(elements, dynopt, fault):
     print(min_time)
 
 
-# 暂态稳定判断
-def TransientStability(case, elements, dynopt):
+def simulation(case, elements, dynopt):
     #########
     # SETUP #
     #########
@@ -53,23 +54,29 @@ def TransientStability(case, elements, dynopt):
     oEvents = events('events.evnt')
 
     # Create recorder object
-    oRecord = recorder('recorder.rcd')
+    oRecord = recorder('recorder.rcd', case)
 
     # Run simulation
     oRecord = run_sim(case, elements, dynopt, oEvents, oRecord)
+
+    return oRecord
+
+
+# 暂态稳定判断
+def TransientStability(oRecord):
     result = True
 
     # Plot variables
-    baseline = np.array(oRecord.results["GEN" + str(1) + ":delta"]) * 180 / np.pi
+    baseline = np.array(oRecord.results["GEN:delta" + str(1)]) * 180 / np.pi
     for i in range(len(elements) - 1):
-        plt.plot(oRecord.t_axis, np.array(oRecord.results["GEN" + str(i + 2) + ":delta"]) * 180 / np.pi - baseline)
+        plt.plot(oRecord.t_axis, np.array(oRecord.results["GEN:delta" + str(i + 2)]) * 180 / np.pi - baseline)
     plt.xlabel('Time (s)')
     # plt.ylim((30,80))
     plt.ylabel('Rotor Angles (relative to GEN1)')
     plt.show()
     for i in range(len(elements) - 1):
         # 相对功角大于180
-        if max(abs(np.array(oRecord.results["GEN" + str(i + 2) + ":delta"]) * 180 / np.pi - baseline)) > 180:
+        if max(abs(np.array(oRecord.results["GEN:delta"+ str(i + 2)]) * 180 / np.pi - baseline)) > 180:
             result = False
 
     return result
@@ -109,16 +116,16 @@ if __name__ == "__main__":
     dynopt['iopt'] = 'runge_kutta'
 
     # Create dynamic model objects
-    G1 = sym_order4('G1.mach', dynopt)
-    G2 = sym_order4('G2.mach', dynopt)
-    G3 = sym_order4('G3.mach', dynopt)
-    G4 = sym_order4('G4.mach', dynopt)
-    G5 = sym_order4('G5.mach', dynopt)
-    G6 = sym_order4('G6.mach', dynopt)
-    G7 = sym_order4('G7.mach', dynopt)
-    G8 = sym_order4('G8.mach', dynopt)
-    G9 = sym_order4('G9.mach', dynopt)
-    G10 = sym_order4('G10.mach', dynopt)
+    G1 = sym_order4('generator/G1.mach', dynopt)
+    G2 = sym_order4('generator/G2.mach', dynopt)
+    G3 = sym_order4('generator/G3.mach', dynopt)
+    G4 = sym_order4('generator/G4.mach', dynopt)
+    G5 = sym_order4('generator/G5.mach', dynopt)
+    G6 = sym_order4('generator/G6.mach', dynopt)
+    G7 = sym_order4('generator/G7.mach', dynopt)
+    G8 = sym_order4('generator/G8.mach', dynopt)
+    G9 = sym_order4('generator/G9.mach', dynopt)
+    G10 = sym_order4('generator/G10.mach', dynopt)
 
     # Create dictionary of elements
     elements = {}
@@ -135,7 +142,7 @@ if __name__ == "__main__":
 
     fault = {}
     fault['type'] = 'BRANCH_FAULT'
-    fault['object'] = '8'
+    fault['object'] = '6'
     fault['parameters'] = [0, 0, 0.5]
 
     criticalSample(elements, dynopt, fault)

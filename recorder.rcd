@@ -1,30 +1,18 @@
 # Recorder set for SMIB test case
 # Record ID, Object ID, Signal Name, Signal/State
 
-GEN1:Vt, GEN1,  Vt, SIGNAL 
-GEN1:delta, GEN1,  delta, STATE
-GEN1:omega, GEN1,  omega, STATE
-GEN1:P, GEN1,  P, SIGNAL
-GEN2:P, GEN2,  P, SIGNAL
-GEN3:P, GEN3,  P, SIGNAL
-GEN2:Vt, GEN2,  Vt, SIGNAL 
-GEN2:delta, GEN2,  delta, STATE
-GEN3:delta, GEN3,  delta, STATE
-GEN2:omega, GEN2,  omega, STATE
-GEN3:omega, GEN3,  omega, STATE
-GEN4:delta, GEN4,  delta, STATE
-GEN5:delta, GEN5,  delta, STATE
-GEN6:delta, GEN6,  delta, STATE
-GEN7:delta, GEN7,  delta, STATE
-GEN8:delta, GEN8,  delta, STATE
-GEN9:delta, GEN9,  delta, STATE
-GEN10:delta, GEN10,  delta, STATE
+GEN:delta, GEN,  delta, STATE
+GEN:Vt, GEN,  Vt, SIGNAL
+GEN:P, GEN,  P, SIGNAL
+GEN:Q, GEN,  Q, SIGNAL
 
-# GEN1:Tm, GEN1, Tm, SIGNAL
-# GEN1:Pm, GEN1, Pm, SIGNAL
-# GEN1:Vd, GEN1, Vd, SIGNAL
-# GEN1:Vq, GEN1, Vq, SIGNAL
-# GEN1:Id, GEN1, Id, SIGNAL
-# GEN1:Iq, GEN1, Iq, SIGNAL
-# GEN1:Vfd, GEN1, Vfd, SIGNAL
-# GEN1:Vang, GEN1, Vang, SIGNAL
+BUS:U, BUS, U
+BUS:A, BUS, A
+
+BRAN:Pf, BRAN, Pf
+BRAN:Qf, BRAN, Qf
+BRAN:Pt, BRAN, Pt
+BRAN:Qt, BRAN, Qt
+
+LOAD:P, LOAD, P
+LOAD:Q, LOAD, Q
