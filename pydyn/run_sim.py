@@ -11,6 +11,7 @@ Time-domain simulation engine
 """
 
 from pydyn.interface import init_interfaces
+from numpy import flatnonzero as find
 from pydyn.mod_Ybus import mod_Ybus
 from pydyn.version import pydyn_ver
 import matplotlib.pyplot as plt
@@ -22,7 +23,9 @@ from pypower.ext2int import ext2int
 from pypower.makeYbus import makeYbus
 from pypower.idx_bus import BUS_I, BUS_TYPE, PD, QD, GS, BS, BUS_AREA, \
     VM, VA, VMAX, VMIN, LAM_P, LAM_Q, MU_VMAX, MU_VMIN, REF
-    
+from pypower.idx_brch import F_BUS, T_BUS, BR_STATUS, PF, PT, QF, QT
+from numpy import asarray, angle, pi, conj, zeros, ones, finfo, c_, ix_
+
 def run_sim(ppc, gens, dynopt = None, events = None, recorder = None):
     """
     Run a time-domain simulation
@@ -86,6 +89,7 @@ def run_sim(ppc, gens, dynopt = None, events = None, recorder = None):
     # Build Ybus matrix
     ppc_int = ext2int(ppc)
     baseMVA, bus, branch = ppc_int["baseMVA"], ppc_int["bus"], ppc_int["branch"]
+
     Ybus, Yf, Yt = makeYbus(baseMVA, bus, branch)
     
     # Build modified Ybus matrix
@@ -162,8 +166,8 @@ def run_sim(ppc, gens, dynopt = None, events = None, recorder = None):
             Vm = v_prev[v].real / np.cos(Va)
             bus_V[v][0] = Vm
             bus_V[v][1] = Va
-            t_bus_V[t][v][0] = Vm
-            t_bus_V[t][v][1] = Va
+            # t_bus_V[t][v][0] = Vm
+            # t_bus_V[t][v][1] = Va
         # results, _ = runpf(ppc)
         # ppc["bus"][:, VM] = results["bus"][:, VM]
         # ppc["bus"][:, VA] = results["bus"][:, VA]
@@ -171,12 +175,32 @@ def run_sim(ppc, gens, dynopt = None, events = None, recorder = None):
         # print('Time',t)
         # for i in range(len(bus)):
         #     print('Bus No.',i,' voltage magnitude:',bus_V[i][0],' voltage angle :',bus_V[i][1])
+        br = find(branch[:, BR_STATUS]).astype(int)  ## in-service branches
+        V = v_prev
+        if branch.shape[1] < QT:
+            branch = c_[branch,
+                               zeros((branch.shape[0],
+                                      QT - branch.shape[1] + 1))]
+
+        # complex power at "from" bus
+        Sf = V[branch[br, F_BUS].astype(int)] \
+             * conj(Yf[br, :] * V) * baseMVA
+        # complex power injected at "to" bus
+        St = V[branch[br, T_BUS].astype(int)] \
+             * conj(Yt[br, :] * V) * baseMVA
+        branch[ix_(br, [PF, QF, PT, QT])] = c_[Sf.real, Sf.imag, St.real, St.imag]
+
+        # 故障线路的两部分合二为一
+        for f in ppc["fault"]:
+            branch[f[0], QT] = branch[-1, QT]
+            branch[f[0], QF] = branch[-1, QF]
+
         if recorder is not None:
             # Record signals or states
             recorder.time_step(t)
             recorder.record_bus(bus_V)
             recorder.record_gen(gens)
-            recorder.record_bran(results["branch"])
+            recorder.record_bran(branch)
             recorder.record_load(ppc_int["load"])
         
         if events is not None:
@@ -199,10 +223,10 @@ def run_sim(ppc, gens, dynopt = None, events = None, recorder = None):
                 v_prev = solve_network(sources, v_prev, Ybus_inv, ppc_int, len(bus), max_err, max_iter)
 
     for i in range(ppc["number_branch"]):
-        plt.plot(recorder.t_axis, np.array(recorder.results["BRAN:Pf" + str(i)]))
+        plt.plot(recorder.t_axis, np.array(recorder.results["BRAN:Qf" + str(i)]))
     plt.xlabel('Time (s)')
     # plt.ylim((30,80))
-    plt.ylabel('Pf')
+    plt.ylabel('Qf')
     plt.show()
     # x = np.arange(int(t_sim / h) + 1)
     #
@@ -238,8 +262,8 @@ def solve_network(sources, v_prev, Ybus_inv, ppc_int, no_buses, max_err, max_ite
             I[source_bus] = source.calc_currents(v_prev[source_bus])
 
         # Solve for network voltages
-        vtmp = Ybus_inv.solve(I)[:39]
-        verr = np.abs(np.dot((vtmp-v_prev), np.transpose(vtmp-v_prev)))
+        vtmp = Ybus_inv.solve(I)
+        verr = np.abs(np.dot((vtmp[:39]-v_prev[:39]), np.transpose(vtmp[:39]-v_prev[:39])))
         v_prev = vtmp
         i = i + 1
     

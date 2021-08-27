@@ -4,6 +4,12 @@
 # Use of this source code is governed by a BSD-style
 # license that can be found in the LICENSE file.
 
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+
 """
 PYPOWER-Dynamics
 Recorder Class
@@ -17,6 +23,7 @@ class recorder:
         self.t_axis = []         
         self.ppc = ppc
         self.parser(filename)
+        self.stability = False
         
         for line in self.recordset:
             self.results[line[0]] = []   
@@ -126,3 +133,56 @@ class recorder:
             f.close()
         else:
             print('No output file selected...')
+
+    def write_to_excel(self, path):
+        gen = {}
+        bus = {}
+        bran = {}
+        load = {}
+        log = {'故障线路编号': [self.ppc['fault_log'][0]], '线路首端母线': [self.ppc['fault_log'][1]],
+               '线路末段母线': [self.ppc['fault_log'][2]], '故障位置': [str(self.ppc['fault_log'][3]*100)+'%'],
+               '故障起始时间': [self.ppc['fault_log'][4]], '故障清除时间': [self.ppc['fault_log'][5]],
+               '故障类型': [self.ppc['fault_log'][6]], '是否稳定': [self.stability]}
+        for i in self.results.keys():
+            if i[:3] == 'GEN':
+                gen[i] = self.results[i]
+            elif i[: 3] == 'BUS':
+                bus[i] = self.results[i]
+            elif i[: 4] == 'BRAN':
+                bran[i] = self.results[i]
+            elif i[: 4] == 'LOAD':
+                load[i] = self.results[i]
+        gen_df = pd.DataFrame(gen)
+        bus_df = pd.DataFrame(bus)
+        bran_df = pd.DataFrame(bran)
+        load_df = pd.DataFrame(load)
+        log_df = pd.DataFrame(log)
+        with pd.ExcelWriter(path) as writer:
+            gen_df.to_excel(writer, sheet_name='发电机', float_format='%.5f')
+            bus_df.to_excel(writer, sheet_name='母线', float_format='%.5f')
+            bran_df.to_excel(writer, sheet_name='支路', float_format='%.5f')
+            load_df.to_excel(writer, sheet_name='负荷', float_format='%.5f')
+            log_df.to_excel(writer, sheet_name='故障描述', float_format='%.5f')
+
+    # TODO
+    def plot_voltage_trajectory(self):
+        for i in range(39):
+            plt.scatter((self.results['BUS:U'+str(i)]*np.exp(1j*self.results['BUS:A'+str(i)])).real, (self.results['BUS:U'+str(i)]*np.exp(1j*self.results['BUS:A'+str(i)])).imag,
+                     )
+        plt.legend()
+        plt.xlabel('Real')
+        # plt.ylim((30,80))
+        plt.ylabel('Imag')
+        plt.show()
+
+    def plot_relative_angle(self):
+        # Plot variables
+        baseline = np.array(self.results["GEN:delta" + str(1)]) * 180 / np.pi
+        for i in range(self.ppc['number_gen']-1):
+            plt.plot(self.t_axis, np.array(self.results["GEN:delta" + str(i + 2)]) * 180 / np.pi - baseline,
+                     label="GEN" + str(i + 2))
+        plt.legend()
+        plt.xlabel('Time (s)')
+        # plt.ylim((30,80))
+        plt.ylabel('Rotor Angles (relative to GEN1)')
+        plt.show()

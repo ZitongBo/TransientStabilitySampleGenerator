@@ -113,6 +113,7 @@ class events:
                     else:
                         intermediate_bus[BS] = -1 / Xf * baseMVA
                     ppc["fault"].append([branch_id, len(ppc["branch"]), len(ppc["bus"])])
+                    ppc['fault_log'] = [branch_id, branch[0], branch[1], location, self.event_stack[0][0], self.event_stack[0][0], '三相短路', '']
                     ppc["branch"] = np.insert(ppc["branch"], branch_id, [separated_branch1], axis=0)
                     ppc["branch"] = np.append(ppc["branch"], [separated_branch2], axis=0)
 
@@ -167,6 +168,7 @@ class events:
                                 print('CLEAR_FAULT event at t=' + str(t) + 's on branch at row "' + str(
                                     int(self.event_stack[0][2])) + '".')
                     refactorise = True
+                    ppc['fault_log'][5] = self.event_stack[0][0]
 
                 if event_type == 'TRIP_BRANCH':
                     branch_id = int(self.event_stack[0][2])

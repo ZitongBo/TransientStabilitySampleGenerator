@@ -6,50 +6,55 @@ from pydyn.ext_grid import ext_grid
 from pydyn.events import events
 from pydyn.recorder import recorder
 from pydyn.run_sim import run_sim
-
+import copy
 # External modules
 from pypower.loadcase import loadcase
 import matplotlib.pyplot as plt
 
 
-# 生成临界样本
-def criticalSample(elements, dynopt, fault):
-    min_time = 1                                 # 故障切除时间最小值
-    max_time = dynopt['t_sim'] / dynopt['h'] / 4 # 故障切除时间最大值
-    case = loadcase('case39.py')
-    # 判断是否存在临界样本
-    writeEventFile(fault, min_time * dynopt["h"])
-    recorder = simulation(case, elements, dynopt)
+# generate critical sample
+def criticalSample(case, elements, dynopt, fault):
+    min_time = 1                                  # min clear time
+    max_time = dynopt['t_sim'] / dynopt['h'] / 8  # max clear time
+    ppc = copy.deepcopy(case)
+
+    # whether the critical sample exists
+    fault['clear_time'] = min_time * dynopt["h"]
+    writeEventFile(fault)
+    recorder = simulation(ppc, elements, dynopt)
     if TransientStability(recorder) is False:
-        print('Can not generate critical sample, please adjust the parameters')
+        print('Can not generate critical sample sample, please adjust the parameters')
         return None
 
-    # 二分法
+    # dichotomy
+    curr_time = round((min_time + max_time) / 2)
     while min_time < max_time - 1:
-        print(min_time,max_time)
-        curr_time = round((min_time + max_time) / 2)
-        writeEventFile(fault, curr_time * dynopt["h"])
-        dynopt['t_sim'] = 5+curr_time*dynopt["h"]
-        case = loadcase('case39.py')
-        recorder = simulation(case, elements, dynopt)
+        fault['clear_time'] = round(curr_time * dynopt["h"], 2)
+        writeEventFile(fault)
+        dynopt['t_sim'] = round(5+curr_time*dynopt["h"], 2)
+        ppc = copy.deepcopy(case)
+        recorder = simulation(ppc, elements, dynopt)
         stability = TransientStability(recorder)
-        print('stability', stability)
+        print('切除故障时间:', curr_time, '是否稳定:', stability)
         if stability:
             min_time = curr_time
         else:
             max_time = curr_time
-    print(min_time)
+        curr_time = round((min_time + max_time) / 2)
+    recorder.write_to_excel('critical sample\\' + fault['type'] + str(fault['object']) + '.xlsx')
+
+
+# generate transient sample
+def transientSample(case, elements, dynopt, fault):
+    ppc = case
+    writeEventFile(fault)
+    recorder = simulation(ppc, elements, dynopt)
+    stability = TransientStability(recorder)
+    print('切除故障时间', fault['clear_time'] * dynopt['h'], '是否稳定', stability)
+    recorder.write_to_excel('transient sample\\'+fault['type'] +str(fault['object'])+'.xlsx')
 
 
 def simulation(case, elements, dynopt):
-    #########
-    # SETUP #
-    #########
-    #
-    # print('---------------------------------------')
-    # print('PYPOWER-Dynamics - 39 Bus Stability Test')
-    # print('---------------------------------------')
-
     # Create event stack
     oEvents = events('events.evnt')
 
@@ -65,24 +70,17 @@ def simulation(case, elements, dynopt):
 # 暂态稳定判断
 def TransientStability(oRecord):
     result = True
-
-    # Plot variables
+    oRecord.plot_relative_angle()
     baseline = np.array(oRecord.results["GEN:delta" + str(1)]) * 180 / np.pi
-    for i in range(len(elements) - 1):
-        plt.plot(oRecord.t_axis, np.array(oRecord.results["GEN:delta" + str(i + 2)]) * 180 / np.pi - baseline)
-    plt.xlabel('Time (s)')
-    # plt.ylim((30,80))
-    plt.ylabel('Rotor Angles (relative to GEN1)')
-    plt.show()
     for i in range(len(elements) - 1):
         # 相对功角大于180
         if max(abs(np.array(oRecord.results["GEN:delta"+ str(i + 2)]) * 180 / np.pi - baseline)) > 180:
             result = False
-
+    oRecord.stability = result
     return result
 
 
-def writeEventFile(fault, clear_time):
+def writeEventFile(fault):
     event_file = open('events.evnt', 'w')
     event_file.write('# Event Stack for SMIB test case\n')
     event_file.write('# Event time (s), Event type, Object ID, [Parameters]\n\n')
@@ -90,7 +88,7 @@ def writeEventFile(fault, clear_time):
     for i in fault['parameters']:
         fault_str += ', ' + str(i)
     event_file.write(fault_str + '\n')
-    clear = str(clear_time) + ', '
+    clear = str(fault['clear_time']) + ', '
     if fault['type'] == 'BRANCH_FAULT':
         clear += 'CLEAR_BRANCH_FAULT, '
     clear += fault['object']
@@ -142,7 +140,10 @@ if __name__ == "__main__":
 
     fault = {}
     fault['type'] = 'BRANCH_FAULT'
-    fault['object'] = '6'
+    fault['object'] = '1'
     fault['parameters'] = [0, 0, 0.5]
+    fault['clear_time'] = 0.3
 
-    criticalSample(elements, dynopt, fault)
+    case = loadcase('case39.py')
+    # transientSample(case, elements, dynopt, fault)
+    criticalSample(case, elements, dynopt, fault)
